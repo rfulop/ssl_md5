@@ -1,6 +1,5 @@
 #include "ft_ssl.h"
 
-
 char *conv_hex_buffer(uint32_t src, size_t size)
 {
     printf("conv hex\n");
@@ -181,6 +180,5 @@ void md5(t_ssl_env *env) {
     ft_strcat(env->algo->hash + 24, d);
     env->algo->hash[32 + 1] = '\0';
     printf("hash -> %s\n", env->algo->hash);
-
 
 }
