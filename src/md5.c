@@ -1,35 +1,57 @@
 #include "ft_ssl.h"
 
-void md5(t_ssl_env *env)
-{
-    int fd;
-    unsigned char mask;
 
-    mask = 0x0;
-    mask |= 1 << 3;
-    if (!env->to_decode)
-        read_file(env, STDIN);
-    if (env->flags & mask)
+char *conv_hex_buffer(uint32_t src, size_t size)
+{
+    printf("conv hex\n");
+    int i;
+    char *buffer;
+    unsigned int n;
+
+    if (!(buffer = (char*)malloc(sizeof(char) * size + 1)))
+        return NULL;
+    n = swap_bits_32(src);
+    i = (int)size - 1;
+    while (i >= 0)
     {
-        env->size = ft_strlen((char *)env->to_decode);
-        env->data = env->to_decode;
+        buffer[i] = MIN_HEX[n % 16];
+        n = n / 16;
+        --i;
     }
-    else
-    {
-        if ((fd = open((const char *)env->to_decode, O_RDONLY)) != -1)
-            read_file(env, fd);
-    }
-    md5_loop(env->data, env->size);
-    mask = 0x0;
-    mask |= 1 << 0;
-    if (env->flags & mask)
-        printf("%s", env->data);
+    printf("buffer -> %s\n", buffer);
+    return buffer;
 }
 
-void md5_loop(uint8_t *msg, size_t init_len)
+
+
+t_alg_md5 *init_alg_md5()
 {
+    t_alg_md5 *alg_md5;
+
+    if (!(alg_md5 = (t_alg_md5*)malloc(sizeof(t_alg_md5))))
+        return NULL;
+
+
+    uint32_t tmp[] = {7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+                  5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+                  4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+                  6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21};
+
+
+    memcpy(alg_md5->r, tmp, 65);
+    printf("aaaa %d\n", alg_md5->r[3]);
+    return alg_md5;
+}
+
+void md5(t_ssl_env *env) {
+    t_alg_md5 *alg_md5;
+
+    alg_md5 = init_alg_md5();
+    printf("aaaa %d\n", alg_md5->r[3]);
+
+
     uint32_t r[] = {7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
-                    5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
+                    5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
                     4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
                     6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21};
 
@@ -66,24 +88,23 @@ void md5_loop(uint8_t *msg, size_t init_len)
 
     // Preparation du message (padding)
     // taille en bits multiple de 512 (pour 16 mots de 32 bits)
-    size_t padding_len = init_len * 8 + 1;
+    size_t padding_len = env->size * 8 + 1;
 
     while (padding_len % 512 != 448)
         padding_len++;
     padding_len /= 8;
 
 
-    unsigned char *data = (unsigned char *)malloc(padding_len + 64);
+    unsigned char *data = (unsigned char *) malloc(padding_len + 64);
 
-    memcpy(data, msg, init_len);
+    memcpy(data, env->data, env->size);
 
     // Ajout d'un bit 1 puis autant de bits 0 pour amener la longueur du message a 448 % 512
-    data[init_len] = 128;
-    int init_len_bits = init_len * 8;
-    while (init_len <= padding_len)
-    {
-        data[init_len + 1] = 0;
-        ++init_len;
+    data[env->size] = 128;
+    int init_len_bits = env->size * 8;
+    while (env->size <= padding_len) {
+        data[env->size + 1] = 0;
+        ++env->size;
     }
     // On ajoute ensuite 64 bits representant la longueur du message
     memcpy(data + padding_len, &init_len_bits, 4);
@@ -103,36 +124,27 @@ void md5_loop(uint8_t *msg, size_t init_len)
     // pour chaque bloc de 512 bits du message
     // subdiviser en 16 mots de 32 bits en little-endian w[i], 0 ≤ i ≤ 15
     size_t chunk = 0;
-    while (chunk < padding_len)
-    {
+    while (chunk < padding_len) {
         uint32_t a = h0;
         uint32_t b = h1;
         uint32_t c = h2;
         uint32_t d = h3;
 
-        uint32_t *w = (uint32_t *)(data + chunk);
+        uint32_t *w = (uint32_t * )(data + chunk);
         int i = 0;
         uint32_t f;
         uint32_t g;
-        while (i < 64)
-        {
-            if (i >= 0 && i <= 15)
-            {
+        while (i < 64) {
+            if (i >= 0 && i <= 15) {
                 f = (b & c) | ((~b) & d);
                 g = i;
-            }
-            else if (i >= 16 && i <= 31)
-            {
+            } else if (i >= 16 && i <= 31) {
                 f = (d & b) | ((~d) & c);
                 g = (5 * i + 1) % 16;
-            }
-            else if (i >= 32 && i <= 47)
-            {
+            } else if (i >= 32 && i <= 47) {
                 f = b ^ c ^ d;
                 g = (3 * i + 5) % 16;
-            }
-            else if (i >= 48 && i <= 63)
-            {
+            } else if (i >= 48 && i <= 63) {
                 f = c ^ (b | (~d));
                 g = (7 * i) % 16;
             }
@@ -153,5 +165,22 @@ void md5_loop(uint8_t *msg, size_t init_len)
         chunk += 64;
     }
 
-    printf("%x%x%x%x\n", swap_bits_32(h0), swap_bits_32(h1), swap_bits_32(h2), swap_bits_32(h3));
+    //todo: check leaks
+    ft_printf("%x %x% x% x\n", swap_bits_32(h0), swap_bits_32(h1), swap_bits_32(h2), swap_bits_32(h3));
+
+    printf("h0 -> %d\n", swap_bits_32(h0));
+
+    char *a = conv_hex_buffer(h0, 8);
+    char *b = conv_hex_buffer(h1, 8);
+    char *c = conv_hex_buffer(h2, 8);
+    char *d = conv_hex_buffer(h3, 8);
+
+    ft_strcat(env->algo->hash, a);
+    ft_strcat(env->algo->hash + 8, b);
+    ft_strcat(env->algo->hash + 16, c);
+    ft_strcat(env->algo->hash + 24, d);
+    env->algo->hash[32 + 1] = '\0';
+    printf("hash -> %s\n", env->algo->hash);
+
+
 }

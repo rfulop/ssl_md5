@@ -28,6 +28,8 @@
 # define FLAG '-'
 # define BUFFER 4096
 # define STDIN 0
+# define NULL_BYTE 0x0
+# define MIN_HEX "0123456789abcdef"
 
 typedef struct s_ssl_env t_ssl_env;
 
@@ -35,6 +37,8 @@ typedef struct s_algo
 {
 	void (*f)(t_ssl_env *env);
 	char **flags;
+	unsigned char string_input;
+	char *hash;
 } t_algo;
 
 typedef struct		s_ssl_env
@@ -60,11 +64,13 @@ typedef struct		s_ssl_env
 # define MD5_FLAGS (const char*[5]){MD5_DEFAULT, MD5_REVERSE, MD5_QUIET, MD5_STRING, NULL}
 # define MD5_NAME "md5"
 
+# define MD5_STRING_INPUT 1 << 3
+
 # define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
 
 typedef struct s_alg_md5
 {
-	const char **flags;
+	uint32_t r[65];
 }				t_alg_md5;
 
 

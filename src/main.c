@@ -15,13 +15,17 @@ void display_error(char *error)
 
 t_algo *init_md5()
 {
-    t_algo *alg;
-    alg = (t_algo*)malloc(sizeof(t_algo));
+    t_algo *algo;
+    algo = (t_algo*)malloc(sizeof(t_algo));
 
-    alg->flags = (char**)MD5_FLAGS;
-    alg->f = md5;
+    algo->flags = (char**)MD5_FLAGS;
+    algo->f = md5;
+    algo->string_input = MD5_STRING_INPUT;
+    algo->hash = NULL;
+    if (!(algo->hash = (char*)malloc(sizeof(char) * 32 + 1)))
+        return NULL;
 
-    return alg;
+    return algo;
 }
 
 t_algo *init_sha256()
@@ -31,7 +35,7 @@ t_algo *init_sha256()
 
 void init_env(t_ssl_env *env)
 {
-    env->flags = 0x0;
+    env->flags = NULL_BYTE;
     env->size = 0;
     env->algo = NULL;
     env->data = NULL;
@@ -74,6 +78,7 @@ t_algo *get_algo(char *algo)
             return init_alg[i]();
         ++i;
     }
+    //todo: change this ugly displaying
     display_error("Allowed algos:\n\tmd5\n\tsha256");
     return NULL;
 }
@@ -114,6 +119,38 @@ void read_file(t_ssl_env *env, int fd)
 }
 
 
+static unsigned int string_input(t_ssl_env *env)
+{
+    unsigned char mask;
+
+    mask = NULL_BYTE;
+    if (env->algo->string_input)
+    {
+        mask |= env->algo->string_input;
+        if (env->flags & mask)
+        {
+            env->size = ft_strlen((char*)env->to_decode);
+            env->data = env->to_decode;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void pick_input(t_ssl_env *env)
+{
+    int fd;
+
+    if (!env->to_decode)
+        read_file(env, STDIN);
+    else if (!(string_input(env)))
+    {
+        if ((fd = open((const char *)env->to_decode, O_RDONLY)) != -1)
+            read_file(env, fd);
+    }
+}
+
+
 int main(int argc, char **argv)
 {
     t_ssl_env   env;
@@ -122,6 +159,7 @@ int main(int argc, char **argv)
         return 0;
     init_env(&env);
     parse_args(&env, argv);
+    pick_input(&env);
     env.algo->f(&env);
     return (0);
 }
